@@ -1,4 +1,4 @@
-from config import RSTP_URL
+from config import RTSP_URL
 import os
 from PIL import Image
 from fastai.vision.all import load_learner
@@ -21,17 +21,18 @@ class PoopinAlert:
         return Image.fromarray(frame).resize((224, 224))
 
     def read_frames(self):
-        cap = cv2.VideoCapture(RSTP_URL)
+        cap = cv2.VideoCapture(RTSP_URL)
         while True:
             success, frame = cap.read()
             if not success:
                 print("Error reading frame")
                 break
             if ret := self.process_frame(frame):
-                return
+                break
 
     def process_frame(self, frame):
         pred = self.model.predict(self.format_frame(frame))
+        print(pred)
         if pred[0] == "pooping":
             self.positive_frame()
         else:
@@ -39,12 +40,12 @@ class PoopinAlert:
 
         if self.count >= self.thresh:
             os.system("afplay poopin_alert.m4a")
-            os.system("afplay poopin_alert.m4a")
-            return
+            return True
+        return False
 
 
 if __name__ == "__main__":
     while True:
         alert = PoopinAlert()
-        alert.process_frame()
+        alert.read_frames()
         del alert
