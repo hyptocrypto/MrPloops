@@ -45,6 +45,8 @@ class PoopinAlert:
 
 
 if __name__ == "__main__":
+    with open("inference.pid", "+w") as f:
+        f.write(str(os.getpid()))
     while True:
         alert = PoopinAlert()
         alert.read_frames()

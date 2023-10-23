@@ -1,5 +1,5 @@
+import os
 from config import RTSP_URL
-from log import LOGGER
 from flask import Flask, render_template, Response
 import cv2
 
@@ -25,7 +25,6 @@ def generate_frames():
 
 @app.route("/")
 def index():
-    LOGGER.info("Stream hit")
     return render_template("index.html")
 
 
@@ -37,4 +36,6 @@ def video_feed():
 
 
 if __name__ == "__main__":
+    with open("stream.pid", "+w") as f:
+        f.write(str(os.getpid()))
     app.run(debug=True)
