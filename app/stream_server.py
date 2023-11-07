@@ -7,10 +7,29 @@ import cv2
 app = Flask(__name__)
 
 
+def detect_motion(first_frame, current_frame):
+    frame_diff = cv2.absdiff(
+        cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), first_frame
+    )
+    _, thresh = cv2.threshold(frame_diff, 30, 255, cv2.THRESH_BINARY)
+    dilated = cv2.dilate(thresh, None, iterations=3)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        if cv2.contourArea(contour) < 500:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+
 def generate_frames():
     cap = cv2.VideoCapture(RTSP_URL)
+    # Get first frame in greyscale
+    # WE do this so we can compare to subsequent frames to determine movement
+    _, first_frame = cap.read()
+    first_frame = cv2.cvtColor(first_frame, cv2.COLOR_BGR2GRAY)
     while True:
         success, frame = cap.read()
+
         if not success:
             break
         else:

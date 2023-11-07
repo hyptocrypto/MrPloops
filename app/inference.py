@@ -1,3 +1,4 @@
+from log import LOGGER
 from config import RTSP_URL
 import os
 from PIL import Image
@@ -32,7 +33,7 @@ class PoopinAlert:
 
     def process_frame(self, frame):
         pred = self.model.predict(self.format_frame(frame))
-        print(pred)
+        LOGGER.info(pred)
         if pred[0] == "pooping":
             self.positive_frame()
         else:
