@@ -33,6 +33,7 @@ def generate_frames():
         if not success:
             break
         else:
+            detect_motion(first_frame, frame)
             ret, buffer = cv2.imencode(".jpg", frame)
             if not ret:
                 continue
