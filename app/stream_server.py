@@ -11,7 +11,7 @@ def detect_motion(first_frame, current_frame):
     frame_diff = cv2.absdiff(
         cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), first_frame
     )
-    _, thresh = cv2.threshold(frame_diff, 30, 255, cv2.THRESH_BINARY)
+    _, thresh = cv2.threshold(frame_diff, 50, 255, cv2.THRESH_BINARY)
     dilated = cv2.dilate(thresh, None, iterations=3)
     contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
