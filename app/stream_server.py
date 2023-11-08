@@ -42,8 +42,9 @@ def detect_motion(first_frame, current_frame):
         if cv2.contourArea(contour) < 500:
             continue
         x, y, w, h = cv2.boundingRect(contour)
-        save_frame(current_frame, (x, y, w, h))
-        # cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        # save_frame(current_frame, (x, y, w, h))
+        print(f"motions {time.time()}")
+        cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
 
 def generate_frames():

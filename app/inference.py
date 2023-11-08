@@ -1,9 +1,11 @@
-from log import LOGGER
+from log import get_logger
 from config import RTSP_URL
 import os
 from PIL import Image
 from fastai.vision.all import load_learner
 import cv2
+
+LOGGER = get_logger()
 
 
 class PoopinAlert:

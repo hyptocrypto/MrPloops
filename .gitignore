@@ -3,3 +3,5 @@
 *.jpeg
 .ipynb_checkpoints
 .DS_Store
+app/motion/img/*.png
+app/motion/bbox/*.txt
