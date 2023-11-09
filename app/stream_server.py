@@ -32,19 +32,19 @@ def ReceiveFrames():
 
 
 def detect_motion(first_frame, current_frame):
+    "Use some grey scale diff to calculate motion/diff from first frame."
     frame_diff = cv2.absdiff(
         cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), first_frame
     )
-    _, thresh = cv2.threshold(frame_diff, 65, 255, cv2.THRESH_BINARY)
+    _, thresh = cv2.threshold(frame_diff, 70, 255, cv2.THRESH_BINARY)
     dilated = cv2.dilate(thresh, None, iterations=3)
     contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        if cv2.contourArea(contour) < 500:
-            continue
-        x, y, w, h = cv2.boundingRect(contour)
-        # save_frame(current_frame, (x, y, w, h))
-        print(f"motions {time.time()}")
-        cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(largest_contour) > 900:
+            x, y, w, h = cv2.boundingRect(largest_contour)
+            return cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    return current_frame
 
 
 def generate_frames():
@@ -55,7 +55,7 @@ def generate_frames():
         first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         while True:
             frame = q.get()
-            detect_motion(first_frame, frame)
+            frame = detect_motion(first_frame, frame)
             ret, buffer = cv2.imencode(".jpg", frame)
             if not ret:
                 continue
