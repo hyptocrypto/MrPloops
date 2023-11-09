@@ -6,8 +6,11 @@ import time
 import queue
 import threading
 from log import get_logger
+from fastai.vision.all import load_learner
 
 LOGGER = get_logger("motion.log")
+
+model = load_learner("dog_be_poopin.pkl")
 
 
 class MotionDetector:
@@ -18,16 +21,14 @@ class MotionDetector:
     def should_terminate(self):
         return self.motion_frames >= 5
 
-    def save_frame(self, frame, bbox):
-        "Save frame and bbox of motion detected"
-        t = time.time()
-        d = os.getcwd()
-        frame_name = f"{d}/motion/img/frame_{t}.png"
-        bbox_name = f"{d}/motion/bbox/bbox_{t}.txt"
-        LOGGER.info(f"Motion detected at {t}")
-        with open(bbox_name, "w+") as f:
-            f.write(",".join(map(str, bbox)))
-        cv2.imwrite(frame_name, frame)
+    def crop_frame(self, frame, bbox, pad=50):
+        "Crop the frame based on the bounding box cords. Add some padding for good measure"
+        x, y, w, h = bbox
+        x_pad = max(0, x - pad)
+        y_pad = max(0, y - pad)
+        w_pad = min(frame.shape[1] - x_pad, w + 2 * pad)
+        h_pad = min(frame.shape[0] - y_pad, h + 2 * pad)
+        return frame[y_pad : y_pad + h_pad, x_pad : x_pad + w_pad]
 
     def receive_frames(self):
         "Put every 15th frame in the queue"
@@ -51,18 +52,16 @@ class MotionDetector:
         frame_diff = cv2.absdiff(
             cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), first_frame
         )
-        _, thresh = cv2.threshold(frame_diff, 85, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(frame_diff, 65, 255, cv2.THRESH_BINARY)
         dilated = cv2.dilate(thresh, None, iterations=3)
         contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            if cv2.contourArea(contour) < 500:
-                continue
-
-            x, y, w, h = cv2.boundingRect(contour)
-            self.save_frame(current_frame, (x, y, w, h))
-            self.motion_frames += 1
-            break
-            # cv2.rectangle(current_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            if cv2.contourArea(largest_contour) > 500:
+                x, y, w, h = cv2.boundingRect(largest_contour)
+                # DO SOME PREDICITONS instead of saving frames
+                self.save_frame(current_frame, (x, y, w, h))
+                self.motion_frames += 1
 
     def read_frames(self):
         # Get first frame in greyscale
