@@ -36,6 +36,7 @@ class PoopinDetector:
             or self.pooping_frame_count >= self.pooping_frame_threshold
             or (datetime.now() - self.start_time) > timedelta(minutes=5)
         ):
+            print("term")
             return True
 
     def format_frame(self, frame):
@@ -80,7 +81,6 @@ class PoopinDetector:
         pred = self.model.predict(self.format_frame(frame))
         print(pred)
         if pred[0] == "pooping":
-            print(pred)
             self.save_frame(frame, poopin=True)
             print("Poopin")
             self.pooping_frame_count += 1
@@ -101,28 +101,29 @@ class PoopinDetector:
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
             if cv2.contourArea(largest_contour) > 900:
+                print("MOTION")
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 motion_frame = self.crop_frame(current_frame, (x, y, w, h))
-                # self.save_frame(motion_frame)
                 self.motion_frames += 1
                 return motion_frame
 
     def read_frames(self):
         # Get first frame in greyscale
         # WE do this so we can compare to subsequent frames to determine movement
-        time.sleep(2)  # Wait from some frames to show up in queue
+        time.sleep(5)  # Wait from some frames to show up in queue
         print("Starting read_frames thread")
         if self.q.empty() != True:
             frame = self.q.get()
             first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             while True:
-                if self.should_terminate:
+                if self.should_terminate():
                     break
                 frame = self.q.get()
+                print("frame")
                 if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
                     self.predict_frame(motion_frame)
         else:
-            LOGGER.error("No frames in queue")
+            print("No frames in queue")
 
     def run(self):
         """
