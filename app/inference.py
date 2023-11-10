@@ -79,16 +79,17 @@ class PoopinDetector:
 
     def predict_frame(self, frame):
         pred = self.model.predict(self.format_frame(frame))
-        print(pred)
         if pred[0] == "pooping":
-            self.save_frame(frame, poopin=True)
             print("Poopin")
             self.pooping_frame_count += 1
             if self.pooping_frame_count >= self.pooping_frame_threshold:
                 os.system("afplay poopin_alert.m4a")
+                self.save_frame(frame, poopin=True)
                 return
-        print("Not pooping")
-        self.save_frame(frame)
+        else:
+            self.pooping_frame_count -= 1
+        # print("Not pooping")
+        # self.save_frame(frame)
 
     def detect_motion(self, first_frame, current_frame):
         "Use some grey scale diff to calculate motion/diff from first frame."
@@ -101,7 +102,6 @@ class PoopinDetector:
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
             if cv2.contourArea(largest_contour) > 900:
-                print("MOTION")
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 motion_frame = self.crop_frame(current_frame, (x, y, w, h))
                 self.motion_frames += 1
@@ -119,7 +119,6 @@ class PoopinDetector:
                 if self.should_terminate():
                     break
                 frame = self.q.get()
-                print("frame")
                 if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
                     self.predict_frame(motion_frame)
         else:
