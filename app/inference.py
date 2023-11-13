@@ -1,11 +1,9 @@
+import numpy as np
 from datetime import datetime, timedelta
 import time
 import os
-from config import RTSP_URL
 import cv2
 import time
-import queue
-import threading
 from log import get_logger
 from fastai.vision.all import load_learner
 from PIL import Image
@@ -15,12 +13,12 @@ LOGGER = get_logger("inference.log")
 
 class PoopinDetector:
     def __init__(self, model) -> None:
-        self.q = queue.Queue()
-        self.motion_frames = 0
         self.model = model
         self.pooping_frame_count = 0
         self.pooping_frame_threshold = 3
-        self.start_time = datetime.now()
+        self.motion_frame_count = 0
+        self.motion_frame_threshold = 50
+        self.first_frame = self.get_frame()
 
     def get_time(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -39,8 +37,11 @@ class PoopinDetector:
             print("term")
             return True
 
-    def format_frame(self, frame):
-        return Image.fromarray(frame).resize((244, 244))
+    def get_frame(self) -> np.array:
+        return np.array(Image.open("img.jpg"))
+
+    def format_frame(self, frame: Image.Image):
+        return frame.resize((244, 244))
 
     def save_frame(self, frame, poopin=False):
         "Save frame of motion detected"
@@ -58,25 +59,6 @@ class PoopinDetector:
         h_pad = min(frame.shape[0] - y_pad, h + 2 * pad)
         return frame[y_pad : y_pad + h_pad, x_pad : x_pad + w_pad]
 
-    def receive_frames(self):
-        "Put every 15th frame in the queue"
-        print("Starting receive frames thread")
-        frame_count = 0
-        frame_count_thresh = 15
-        cap = cv2.VideoCapture(RTSP_URL)
-        ret, frame = cap.read()
-        self.q.put(frame)
-        while ret:
-            if self.should_terminate():
-                break
-            ret, frame = cap.read()
-            if ret:
-                if frame_count >= frame_count_thresh:
-                    self.q.put(frame)
-                    frame_count = 0
-                else:
-                    frame_count += 1
-
     def predict_frame(self, frame):
         pred = self.model.predict(self.format_frame(frame))
         if pred[0] == "pooping":
@@ -91,10 +73,12 @@ class PoopinDetector:
         # print("Not pooping")
         # self.save_frame(frame)
 
-    def detect_motion(self, first_frame, current_frame):
+    def detect_motion(self):
         "Use some grey scale diff to calculate motion/diff from first frame."
+        current_frame = self.get_frame()
         frame_diff = cv2.absdiff(
-            cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), first_frame
+            cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY),
+            cv2.cvtColor(self.first_frame, cv2.COLOR_BGR2GRAY),
         )
         _, thresh = cv2.threshold(frame_diff, 70, 255, cv2.THRESH_BINARY)
         dilated = cv2.dilate(thresh, None, iterations=3)
@@ -125,17 +109,9 @@ class PoopinDetector:
             print("No frames in queue")
 
     def run(self):
-        """
-        One thread will read frames into queue,
-        another will process them.
-        Refs: https://stackoverflow.com/questions/49233433/opencv-read-errorh264-0x8f915e0-error-while-decoding-mb-53-20-bytestream
-        """
-        read_frames_thread = threading.Thread(target=self.receive_frames)
-        process_frames_thread = threading.Thread(target=self.read_frames)
-        read_frames_thread.start()
-        process_frames_thread.start()
-        read_frames_thread.join()
-        process_frames_thread.join()
+        while True:
+            if (motion_frame := self.detect_motion()) is not None:
+                self.predict_frame(motion_frame)
 
 
 if __name__ == "__main__":
@@ -144,13 +120,5 @@ if __name__ == "__main__":
         f.write(str(os.getpid()))
 
     model = load_learner("dog_be_pooping.pkl")
-
-    # The way we detect motion is by comparing the first frame too all subsequent frames.
-    # However, this causes the potential situation where something is changed in the cam frame,
-    # (Like furniture being moved), to give false positive for movement in all subsequent frames.
-    # To combat this, we run in a loop. After a few positive movement frames, we re-init the detector
-    # so the first frame is reset. Kinda hacky, but seams to work.
-    while True:
-        print("Creating new detector instance")
-        alert = PoopinDetector(model=model)
-        alert.run()
+    d = PoopinDetector(model=model)
+    d.run()
