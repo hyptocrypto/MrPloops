@@ -14,10 +14,10 @@ app = Flask(__name__)
 
 def receive_frames(q: queue.Queue, term: bool = False):
     """
-    Dump frames into queue. 
-    This will run in background thread and self terminate after 1 min. 
+    Dump frames into queue.
+    This will run in background thread and self terminate after 1 min.
     Otherwise to many threads will stack up filling queues that are not being read from.
-    This will result in memory depletion. 
+    This will result in memory depletion.
     """
     end = datetime.now() + timedelta(minutes=1)
     print("Starting receive frames thread")
@@ -34,7 +34,6 @@ def receive_frames(q: queue.Queue, term: bool = False):
             cap = cv2.VideoCapture(RTSP_URL)
         q.put(frame)
     print("Breaking receive frames")
-
 
 
 def detect_motion(first_frame, current_frame):
@@ -70,9 +69,10 @@ def generate_frames(q: queue.Queue):
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
                 )
-        
+
     else:
         print("Error. No frames in queue")
+
 
 @app.route("/")
 def index():
@@ -96,4 +96,4 @@ def video_feed():
 if __name__ == "__main__":
     with open("stream.pid", "+w") as f:
         f.write(str(os.getpid()))
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=80)

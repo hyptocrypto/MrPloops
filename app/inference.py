@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime, timedelta
 import time
 import os
@@ -14,8 +15,9 @@ LOGGER = get_logger("inference.log")
 
 
 class PoopinDetector:
-    def __init__(self, model) -> None:
+    def __init__(self, model, debug) -> None:
         self.q = queue.Queue()
+        self.debug = debug
         self.motion_frames = 0
         self.model = model
         self.pooping_frame_count = 0
@@ -32,14 +34,14 @@ class PoopinDetector:
         or just after 5 min to avoid issues with stream breaking
         """
         if self.term:
-            LOGGER.info("early term")
+            print("early term") if self.debug else LOGGER.info("early term")
             return True
         if (
             self.motion_frames >= 1000
             or self.pooping_frame_count >= self.pooping_frame_threshold
             or (datetime.now() - self.start_time) > timedelta(minutes=5)
         ):
-            LOGGER.info("term")
+            print("term") if self.debug else LOGGER.info("term")
             self.term = True
             return True
 
@@ -64,7 +66,7 @@ class PoopinDetector:
 
     def receive_frames(self):
         "Dump frames into queue"
-        LOGGER.info("Starting receive frames thread")
+        print("Starting receive frames thread") if self.debug else LOGGER.info("Starting receive frames thread")
         cap = cv2.VideoCapture(RTSP_URL)
         ret, frame = cap.read()
         self.q.put(frame)
@@ -75,7 +77,7 @@ class PoopinDetector:
             if not ret:
                 cap = cv2.VideoCapture()
             self.q.put(frame)
-        LOGGER.info("Breaking receive frames")
+        print("Breaking receive frames thread") if self.debug else LOGGER.info("Breaking receive frames")
         self.term = True
 
     def predict_frame(self, frame):
@@ -84,9 +86,9 @@ class PoopinDetector:
         So we try a hacky 'average' technique. Positive frame increments by 2, negative frame decrements by 1.
         """
         pred = self.model.predict(self.format_frame(frame))
-        LOGGER.info(pred)
+        print(pred) if self.debug else LOGGER.info(pred)
         if pred[0] == "pooping":
-            LOGGER.info("Poopin")
+            print("Poopin") if self.debug else LOGGER.info("Poopin")
             self.pooping_frame_count += 2
             self.save_frame(frame, poopin=True)
             if self.pooping_frame_count >= self.pooping_frame_threshold:
@@ -113,13 +115,16 @@ class PoopinDetector:
                 return motion_frame
 
     def read_frames(self):
-        # Get first frame in greyscale
-        # WE do this so we can compare to subsequent frames to determine movement
+        sleep_count = 0
         while self.q.empty():
-            LOGGER.info("No frames in queue")
+            print("No frames in queue") if self.debug else LOGGER.info("No frames in queue")
             time.sleep(1)  # Wait from some frames to show up in queue
+            sleep_count += 1
+            if sleep_count >= 20:
+                self.term = True
+                return 
 
-        LOGGER.info("Starting read_frames thread")
+        print("Starting read_frames thread") if self.debug else LOGGER.info("Starting read_frames thread")
         frame = self.q.get()
         first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         while True:
@@ -130,7 +135,7 @@ class PoopinDetector:
             frame = self.q.get()
             if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
                 self.predict_frame(motion_frame)
-        LOGGER.info("Breaking read frames")
+        print("Breaking read frames") if self.debug else LOGGER.info("Breaking read frames")
 
     def run(self):
         """
@@ -148,6 +153,8 @@ if __name__ == "__main__":
     # Write process_id to to file so we can terminate the process on shutdown.
     with open("inference.pid", "+w") as f:
         f.write(str(os.getpid()))
+    
+    debug = len(sys.argv) > 1
 
     model = load_learner("dog_be_pooping.pkl")
 
@@ -158,5 +165,5 @@ if __name__ == "__main__":
     # so the first frame is reset. Kinda hacky, but seams to work.
     while True:
         LOGGER.info("Creating new detector instance")
-        alert = PoopinDetector(model=model)
+        alert = PoopinDetector(model=model, debug=debug)
         alert.run()
