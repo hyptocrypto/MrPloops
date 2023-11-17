@@ -73,7 +73,7 @@ class PoopinDetector:
                 break
             ret, frame = cap.read()
             if not ret:
-                break
+                cap = cv2.VideoCapture()
             self.q.put(frame)
         LOGGER.info("Breaking receive frames")
         self.term = True
