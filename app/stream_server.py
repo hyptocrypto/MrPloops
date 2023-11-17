@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import time
 import os
 from config import RTSP_URL
@@ -11,45 +12,29 @@ import threading
 app = Flask(__name__)
 
 
-def read_frames(self):
-    while self.q.empty():
-        print("No frames in queue")
-        time.sleep(1)  # Wait from some frames to show up in queue
-
-    print("Starting read_frames thread")
-    frame = self.q.get()
-    first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    while True:
-        if self.q.empty():
-            continue
-        frame = self.q.get()
-        frame = detect_motion(first_frame, frame)
-        ret, buffer = cv2.imencode(".jpg", frame)
-        if not ret:
-            continue
-        yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-        )
-
-
 def receive_frames(q: queue.Queue, term: bool = False):
-    "Dump frames into queue"
-    try:
-        print("Starting receive frames thread")
-        cap = cv2.VideoCapture(RTSP_URL)
+    """
+    Dump frames into queue. 
+    This will run in background thread and self terminate after 1 min. 
+    Otherwise to many threads will stack up filling queues that are not being read from.
+    This will result in memory depletion. 
+    """
+    end = datetime.now() + timedelta(minutes=1)
+    print("Starting receive frames thread")
+    cap = cv2.VideoCapture(RTSP_URL)
+    ret, frame = cap.read()
+    q.put(frame)
+    while ret:
+        if datetime.now() > end:
+            break
+        if term:
+            break
         ret, frame = cap.read()
+        if not ret:
+            cap = cv2.VideoCapture(RTSP_URL)
         q.put(frame)
-        while ret:
-            if term:
-                break
-            ret, frame = cap.read()
-            if not ret:
-                cap = cv2.VideoCapture(RTSP_URL)
-            q.put(frame)
-        print("Breaking receive frames")
-    except Exception as e:
-        print(e)
+    print("Breaking receive frames")
+
 
 
 def detect_motion(first_frame, current_frame):
@@ -85,9 +70,9 @@ def generate_frames(q: queue.Queue):
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
                 )
+        
     else:
         print("Error. No frames in queue")
-
 
 @app.route("/")
 def index():
