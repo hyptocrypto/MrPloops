@@ -66,7 +66,9 @@ class PoopinDetector:
 
     def receive_frames(self):
         "Dump frames into queue"
-        print("Starting receive frames thread") if self.debug else LOGGER.info("Starting receive frames thread")
+        print("Starting receive frames thread") if self.debug else LOGGER.info(
+            "Starting receive frames thread"
+        )
         cap = cv2.VideoCapture(RTSP_URL)
         ret, frame = cap.read()
         self.q.put(frame)
@@ -77,7 +79,9 @@ class PoopinDetector:
             if not ret:
                 cap = cv2.VideoCapture()
             self.q.put(frame)
-        print("Breaking receive frames thread") if self.debug else LOGGER.info("Breaking receive frames")
+        print("Breaking receive frames thread") if self.debug else LOGGER.info(
+            "Breaking receive frames"
+        )
         self.term = True
 
     def predict_frame(self, frame):
@@ -96,7 +100,6 @@ class PoopinDetector:
                 return
         else:
             self.pooping_frame_count -= 1
-        
 
     def detect_motion(self, first_frame, current_frame):
         "Use some grey scale diff to calculate motion/diff from first frame."
@@ -115,27 +118,37 @@ class PoopinDetector:
                 return motion_frame
 
     def read_frames(self):
-        sleep_count = 0
-        while self.q.empty():
-            print("No frames in queue") if self.debug else LOGGER.info("No frames in queue")
-            time.sleep(1)  # Wait from some frames to show up in queue
-            sleep_count += 1
-            if sleep_count >= 20:
-                self.term = True
-                return 
+        try:
+            sleep_count = 0
+            while self.q.empty():
+                print("No frames in queue") if self.debug else LOGGER.info(
+                    "No frames in queue"
+                )
+                time.sleep(1)  # Wait from some frames to show up in queue
+                sleep_count += 1
+                if sleep_count >= 20:
+                    self.term = True
+                    return
 
-        print("Starting read_frames thread") if self.debug else LOGGER.info("Starting read_frames thread")
-        frame = self.q.get()
-        first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        while True:
-            if self.should_terminate():
-                break
-            if self.q.empty():
-                continue
+            print("Starting read_frames thread") if self.debug else LOGGER.info(
+                "Starting read_frames thread"
+            )
             frame = self.q.get()
-            if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
-                self.predict_frame(motion_frame)
-        print("Breaking read frames") if self.debug else LOGGER.info("Breaking read frames")
+            first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            while True:
+                if self.should_terminate():
+                    break
+                if self.q.empty():
+                    continue
+                frame = self.q.get()
+                if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
+                    self.predict_frame(motion_frame)
+            print("Breaking read frames") if self.debug else LOGGER.info(
+                "Breaking read frames"
+            )
+        except Exception as e:
+            print(f"Error: {e}") if self.debug else LOGGER.info(f"Error: {e}")
+            self.term = True
 
     def run(self):
         """
@@ -153,7 +166,7 @@ if __name__ == "__main__":
     # Write process_id to to file so we can terminate the process on shutdown.
     with open("inference.pid", "+w") as f:
         f.write(str(os.getpid()))
-    
+
     debug = len(sys.argv) > 1
 
     model = load_learner("dog_be_pooping.pkl")
@@ -164,6 +177,8 @@ if __name__ == "__main__":
     # To combat this, we run in a loop. After a few positive movement frames, we re-init the detector
     # so the first frame is reset. Kinda hacky, but seams to work.
     while True:
-        LOGGER.info("Creating new detector instance")
+        print("Creating new detector instance") if debug else LOGGER.info(
+            "Creating new detector instance"
+        )
         alert = PoopinDetector(model=model, debug=debug)
         alert.run()

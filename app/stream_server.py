@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime, timedelta
 import time
 import os
@@ -96,4 +97,7 @@ def video_feed():
 if __name__ == "__main__":
     with open("stream.pid", "+w") as f:
         f.write(str(os.getpid()))
-    app.run(debug=True, host="0.0.0.0", port=80)
+    if len(sys.argv) > 1:
+        app.run(debug=True)
+    else:
+        app.run(debug=True, host="0.0.0.0", port=80)
