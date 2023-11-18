@@ -22,6 +22,7 @@ class PoopinDetector:
         self.model = model
         self.pooping_frame_count = 0
         self.pooping_frame_threshold = 8
+        self.empty_queue_count = 0
         self.start_time = datetime.now()
         self.term = False  # Flag for receive_frames thread to check for termination.
 
@@ -37,7 +38,8 @@ class PoopinDetector:
             print("early term") if self.debug else LOGGER.info("early term")
             return True
         if (
-            self.motion_frames >= 1000
+            self.empty_queue_count > 1000
+            or self.motion_frames >= 1000
             or self.pooping_frame_count >= self.pooping_frame_threshold
             or (datetime.now() - self.start_time) > timedelta(minutes=5)
         ):
@@ -133,12 +135,14 @@ class PoopinDetector:
             print("Starting read_frames thread") if self.debug else LOGGER.info(
                 "Starting read_frames thread"
             )
+            empty_queue_count = 0
             frame = self.q.get()
             first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             while True:
                 if self.should_terminate():
                     break
                 if self.q.empty():
+                    empty_queue_count += 1
                     continue
                 frame = self.q.get()
                 if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
