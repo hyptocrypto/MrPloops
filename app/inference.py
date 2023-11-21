@@ -29,21 +29,33 @@ class PoopinDetector:
     def get_time(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
+    def _log(self, msg: str, err: bool = False):
+        if self.debug:
+            print(msg)
+        else:
+            LOGGER.error(msg) if err else LOGGER.info(msg)
+
     def should_terminate(self):
         """
-        We terminate the detector after a positive alert or to many motion frames,
+        We terminate the detector after a positive alert, to many motion frames,
         or just after 5 min to avoid issues with stream breaking
         """
         if self.term:
-            print("early term") if self.debug else LOGGER.info("early term")
+            self._log("Early termination")
             return True
-        if (
-            self.empty_queue_count > 1000
-            or self.motion_frames >= 1000
-            or self.pooping_frame_count >= self.pooping_frame_threshold
-            or (datetime.now() - self.start_time) > timedelta(minutes=5)
-        ):
-            print("term") if self.debug else LOGGER.info("term")
+
+        if self.empty_queue_count > 1000:
+            self._log("Terminated due to empty queue")
+            self.term = True
+            return True
+
+        if self.motion_frames >= 1000:
+            self._log("Terminated due to motion frames")
+            self.term = True
+            return True
+
+        if (datetime.now() - self.start_time) > timedelta(minutes=5):
+            self._log("Terminated due to time limit")
             self.term = True
             return True
 
@@ -68,9 +80,7 @@ class PoopinDetector:
 
     def receive_frames(self):
         "Dump frames into queue"
-        print("Starting receive frames thread") if self.debug else LOGGER.info(
-            "Starting receive frames thread"
-        )
+        self._log("Starting receive frames thread")
         cap = cv2.VideoCapture(RTSP_URL)
         ret, frame = cap.read()
         self.q.put(frame)
@@ -81,9 +91,7 @@ class PoopinDetector:
             if not ret:
                 cap = cv2.VideoCapture()
             self.q.put(frame)
-        print("Breaking receive frames thread") if self.debug else LOGGER.info(
-            "Breaking receive frames"
-        )
+        self._log("Breaking receive frames thread")
         self.term = True
 
     def predict_frame(self, frame):
@@ -92,13 +100,13 @@ class PoopinDetector:
         So we try a hacky 'average' technique. Positive frame increments by 2, negative frame decrements by 1.
         """
         pred = self.model.predict(self.format_frame(frame))
-        print(pred) if self.debug else LOGGER.info(pred)
+        self._log(pred)
         if pred[0] == "pooping":
-            print("Poopin") if self.debug else LOGGER.info("Poopin")
             self.pooping_frame_count += 2
             self.save_frame(frame, poopin=True)
             if self.pooping_frame_count >= self.pooping_frame_threshold:
                 os.system("afplay poopin_alert.m4a")
+                self.term = True
                 return
         else:
             self.pooping_frame_count -= 1
@@ -123,18 +131,14 @@ class PoopinDetector:
         try:
             sleep_count = 0
             while self.q.empty():
-                print("No frames in queue") if self.debug else LOGGER.info(
-                    "No frames in queue"
-                )
+                self._log("No frames in queue")
                 time.sleep(1)  # Wait from some frames to show up in queue
                 sleep_count += 1
                 if sleep_count >= 20:
                     self.term = True
                     return
 
-            print("Starting read_frames thread") if self.debug else LOGGER.info(
-                "Starting read_frames thread"
-            )
+            self._log("Starting read frames thread")
             empty_queue_count = 0
             frame = self.q.get()
             first_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -147,11 +151,9 @@ class PoopinDetector:
                 frame = self.q.get()
                 if (motion_frame := self.detect_motion(first_frame, frame)) is not None:
                     self.predict_frame(motion_frame)
-            print("Breaking read frames") if self.debug else LOGGER.info(
-                "Breaking read frames"
-            )
+            self._log("Breaking read frames thread")
         except Exception as e:
-            print(f"Error: {e}") if self.debug else LOGGER.info(f"Error: {e}")
+            self._log(e, err=True)
             self.term = True
 
     def run(self):
@@ -184,5 +186,4 @@ if __name__ == "__main__":
         print("Creating new detector instance") if debug else LOGGER.info(
             "Creating new detector instance"
         )
-        alert = PoopinDetector(model=model, debug=debug)
-        alert.run()
+        PoopinDetector(model=model, debug=debug).run()
