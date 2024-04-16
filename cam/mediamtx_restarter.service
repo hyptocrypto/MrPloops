@@ -1,0 +1,6 @@
+[Unit]
+Wants=network.target
+[Service]
+ExecStart=/bin/bash /home/pi/restart_mediamtx.sh
+[Install]
+WantedBy=multi-user.target
