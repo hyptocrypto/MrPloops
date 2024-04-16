@@ -1,14 +1,14 @@
-import sys
-from datetime import datetime, timedelta
-import time
 import os
-from config import RTSP_URL
-import cv2
-import time
 import queue
+import sys
 import threading
-from log import get_logger
+import time
+from datetime import datetime, timedelta
+
+import cv2
+from config import RTSP_URL
 from fastai.vision.all import load_learner
+from log import get_logger
 from PIL import Image
 
 LOGGER = get_logger("inference.log")
@@ -153,7 +153,7 @@ class PoopinDetector:
                     self.predict_frame(motion_frame)
             self._log("Breaking read frames thread")
         except Exception as e:
-            self._log(e, err=True)
+            self._log(str(e), err=True)
             self.term = True
 
     def run(self):
