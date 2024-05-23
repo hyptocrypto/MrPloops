@@ -1,7 +1,11 @@
-import random
-import shutil
+"""
+Splits images form the main 'train' dir into a train & validate dirs used for training.
+"""
+
 import math
 import os
+import random
+import shutil
 
 
 def copy_files(source_dir, dest_dir, file_list):
